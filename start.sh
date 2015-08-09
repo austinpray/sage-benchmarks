@@ -21,28 +21,54 @@ then
   esac
 fi
 
+# platform detection
+platform='unknown'
+unamestr=$(uname)
+if [[ "$unamestr" == 'Linux' ]]
+then
+   platform='linux'
+elif [[ "$unamestr" == 'FreeBSD' ]]
+then
+   platform='freebsd'
+fi
 
-echo "*****************"
-echo "Debug Information"
-echo "*****************"
+if [[ $platform == 'freebsd' ]]
+then
+  if hash gtime 2>/dev/null
+  then
+    alias time='gtime'
+  else
+    echo "ERROR: You need gtime installed. brew install gnu-time"
+    exit 1
+  fi
+fi
 
+
+if ! hash gtime 2>/dev/null
+then
+  echo "ERROR: You need csv2md installed. npm install -g csv2md"
+  exit 1
+fi
+
+echo "# Debug Information"
+
+echo '```'
 printf "%s\t%s\n" "node version" $(node -v)
 printf "%s\t%s\n" "npm version" $(npm -v)
+echo '```'
 
 echo
 
-echo "************"
-echo "Running Test"
-echo "************"
+echo "# Running Setup"
 
 if [ ! -d .tmp ]
 then
-  echo "creating tmp dir"
+  echo "* creating tmp dir"
   mkdir -p .tmp
 else
   if $clean
   then
-    echo "cleaning tmp dir"
+    echo "* cleaning tmp dir"
     rm -rf .tmp/*
   fi
 fi
@@ -53,37 +79,94 @@ do
   cd ./.tmp
   if [ ! -d $dir ]
   then
-    echo "creating directory $dir"
+    echo "* creating directory $dir"
     mkdir $dir
   fi
 
 
   if [ ! -d $dir/.git ]
   then
-    echo "cloning sage"
+    echo "* cloning sage"
+    echo '```'
     git clone $repo $dir
+    echo '```'
   else
-    echo "updating sage"
+    echo "* updating sage"
+    echo '```'
     (cd $dir && git fetch --all)
+    echo '```'
   fi
 
   cd $dir
 
   git checkout ${!dir} -q
-  echo "$dir is now at $(git rev-parse --verify HEAD)"
+  echo "* $dir is now at $(git rev-parse --verify HEAD)"
+  if [ -d bower_components ]
+  then
+    if ! $skipNPM
+    then
+      echo "* updating bower."
+      bower -q update
+    fi
+  else
+    echo "* installing bower modules"
+    bower -q install
+  fi
   if [ -d node_modules ]
   then
     if ! $skipNPM
     then
-      echo "updating npm modules. This could take a while....."
+      echo "* updating npm modules. This could take a while....."
       npm update &>/dev/null
     fi
   else
-    echo "installing npm modules. This could take a while....."
+    echo "* installing npm modules. This could take a while....."
     npm install &>/dev/null
   fi
+  echo '```'
   npm list --depth=0
+  echo '```'
 )
 done
 
+echo
 
+echo "# Running Comparisons"
+
+function runGulp {
+  # usage
+  # runGulp stage variation outputFile
+  stage=$1
+  variation=$2
+  outputFile=$3
+  header="trial, variation, time (seconds), commit, command"
+
+  if [ ! -f "$outputFile" ]
+  then
+    echo "$header" > $outputFile
+  fi
+
+  for i in {1..5}
+  do
+    gtime -f "$stage, $variation, %e, ${!1}, %C" -o $3 --append gulp >/dev/null 2>/dev/null
+  done
+}
+
+resultsFile=$(pwd)/.tmp/results.csv
+[ -f "$resultsFile" ] && rm $resultsFile
+
+for dir in before after
+do
+  echo "## Profiling $dir"
+
+  (
+    cd ./.tmp/$dir
+    echo "* Running gulp on barebones sage"
+    runGulp $dir 'barebones' $resultsFile
+  )
+
+done
+
+echo
+echo
+cat $resultsFile | csv2md
