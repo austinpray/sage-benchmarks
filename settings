@@ -1,0 +1,3 @@
+export SAGE_REPO=git@github.com:austinpray/sage.git
+export SAGE_BEFORE_COMMIT=12fe0473683553f2adf7652076b198ce122c5cc1
+export SAGE_AFTER_COMMIT=12fe0473683553f2adf7652076b198ce122c5cc1
