@@ -93,7 +93,7 @@ do
   else
     echo "* updating sage"
     echo '```'
-    (cd $dir && git fetch --all)
+    (cd $dir && git reset --hard && git fetch --all)
     echo '```'
   fi
 
@@ -131,7 +131,18 @@ done
 
 echo
 
-echo "# Running Comparisons"
+kitchSinkBower="angular angular-ui-router lodash d3 animate.css moment"
+
+echo "
+# Running Comparisons
+
+These are the variants of the trials to be run:
+
+* barebones: this is what comes with the repo by default.
+* angular.js: install angular via bower.
+* kitchen sink: install a whole bunch of stuff. $kitchSinkBower
+
+"
 
 function runGulp {
   # usage
@@ -157,12 +168,21 @@ resultsFile=$(pwd)/.tmp/results.csv
 
 for dir in before after
 do
+  echo
   echo "## Profiling $dir"
 
   (
     cd ./.tmp/$dir
-    echo "* Running gulp on barebones sage"
+    echo "* Running variant “barebones”"
     runGulp $dir 'barebones' $resultsFile
+    echo "* Running variant “angular.js”"
+    bower -s install angular --save
+    runGulp $dir 'angular.js' $resultsFile
+    bower -s uninstall angular --save
+    echo "* Running variant “kitchen sink”"
+    bower -s install $kitchSinkBower --save
+    runGulp $dir 'kitchen sink' $resultsFile
+    bower -s uninstall $kitchSinkBower --save
   )
 
 done
